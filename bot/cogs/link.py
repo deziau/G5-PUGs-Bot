@@ -14,8 +14,8 @@ class LinkCog(commands.Cog):
         self.bot = bot
 
     @commands.command(brief=utils.trans('link-command-brief'),
-                      usage='link <steam_id> <flag_emoji>')
-    async def link(self, ctx, *args):
+                      usage='link <steam_id> {OPTIONAL flag_emoji}')
+    async def link(self, ctx, steam_id=None, flag='🇺🇸'):
         """"""
         guild_data = await DB.helper.fetch_row(
             "SELECT * FROM guilds\n"
@@ -27,10 +27,7 @@ class LinkCog(commands.Cog):
             raise commands.UserInputError(message=utils.trans('bot-not-setup', self.bot.command_prefix[0]))
 
         user = ctx.author
-        try:
-            steam_id = args[0]
-            flag = args[1]
-        except IndexError:
+        if not steam_id:
             msg = utils.trans('invalid-usage', self.bot.command_prefix[0], ctx.command.usage)
             raise commands.UserInputError(message=msg)
 
