@@ -41,8 +41,8 @@ This is a modified version of [csgo-league-bot](https://github.com/csgo-league/c
     DISCORD_BOT_PREFIXES=q! Q! # Bot commands prefixes
     EMOJIS_GUILD_ID= # ID of a discord server to create maps emojis
 
-    WEB_PANEL=https://g5v.example.com # G5V url
-    API_URL=https://g5v.example.com/api # G5API url
+    WEB_PANEL=https://g5v.example.com # G5V url (see https://github.com/PhlexPlexico/G5V)
+    API_URL=https://g5v.example.com/api # G5API url (see https://github.com/PhlexPlexico/G5API)
 
     GAMEMODE_COMPETITIVE=1
     GAMEMODE_WINGMAN=2
@@ -58,3 +58,6 @@ This is a modified version of [csgo-league-bot](https://github.com/csgo-league/c
 7. Apply the database migrations by running `python3 migrate.py up`.
 
 8. Run the launcher Python script by running, `python3 launcher.py`.
+
+## Thanks To
+[Cameron Shinn](https://github.com/cameronshinn) for his initial implementation of CSGO League Bot.
