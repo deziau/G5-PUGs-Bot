@@ -478,8 +478,8 @@ class Matches:
         except (ClientConnectionError, TimeoutError, ContentTypeError):
             raise Exception('Unable to connect to the API, Please try again later.')
 
-    @staticmethod
-    async def get_recent_matches(limit=20):
+    @classmethod
+    async def get_recent_matches(cls, limit=20):
         """"""
         url = f'{Config.api_url}/matches/limit/{limit}'
 
@@ -490,7 +490,7 @@ class Matches:
                 if resp.status != 200:
                     raise Exception(f'API ERROR!!! Unable to recent matches')
                 resp_data = await resp.json()
-                return {match['id']: match['end_time'] is None for match in resp_data['matches']}
+                return [cls(match) for match in resp_data['matches']]
         except (ClientConnectionError, TimeoutError, ContentTypeError):
             raise Exception('Unable to connect to the API, Please try again later.')
 

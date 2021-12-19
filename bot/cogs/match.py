@@ -868,51 +868,45 @@ class MatchCog(commands.Cog):
 
         if match_ids:
             for match_id in match_ids:
-                match_data = await DB.helper.fetch_row(
-                    "SELECT * FROM matches\n"
-                    f"    WHERE id = {match_id};"
-                )
-                db_match = await utils.Match.from_dict(self.bot, match_data)
-
-            try:
-                api_matches = await api.Matches.get_recent_matches()
-                if match_id in api_matches:
-                    await self.update_match_message(db_match, api_matches[match_id])
-            except Exception as e:
-                self.bot.logger.error(f'caught error when calling check_matches(): {e}')
+                try:
+                    await self.update_match_message(match_id)
+                except Exception as e:
+                    self.bot.logger.error(f'caught error when calling check_matches(): {e}')
         else:
             self.check_matches.cancel()
 
-    async def update_match_message(self, db_match, live):
+    async def update_match_message(self, match_id):
         """"""
         api_match = None
         api_server = None
         api_mapstats = []
         api_scoreboard = []
 
+        match_data = await DB.helper.fetch_row(
+            "SELECT * FROM matches\n"
+            f"    WHERE id = {match_id};"
+        )
+        db_match = await utils.Match.from_dict(self.bot, match_data)
+
         try:
             api_match = await api.Matches.get_match(db_match.id)
         except Exception as e:
             print(e)
-            pass
 
         try:
             api_server = await api.Servers.get_server(api_match.server_id, db_match.db_guild.auth)
         except Exception as e:
             print(e)
-            pass
 
         try:
             api_mapstats = await api.MapStats.get_mapstats(api_match.id)
         except Exception as e:
             print(e)
-            pass
 
         try:
             api_scoreboard = await api.Scoreboard.get_match_scoreboard(api_match.id)
         except Exception as e:
             print(e)
-            pass
 
         embed = self._embed_match(api_match, api_server, api_mapstats, api_scoreboard)
 
@@ -930,7 +924,7 @@ class MatchCog(commands.Cog):
                 print(e)
                 pass
         
-        if not live:
+        if api_match.end_time:
             await self.remove_teams_channels(db_match)
 
     async def remove_teams_channels(self, db_match):
