@@ -138,6 +138,7 @@
         "series-value-already":         "The current series value is already set to **{}**",
         "set-series-value":             "Series type set tp **{}**",
         "delete-lobby-command-brief":   "Delete a lobby",
-        "success-delete-lobby":         "Lobby **{}** has been deleted successfully"
+        "success-delete-lobby":         "Lobby **{}** has been deleted successfully",
+        "match-info-footer":            "Server will close after 10 minutes if anyone doesn't join"
     }
 }

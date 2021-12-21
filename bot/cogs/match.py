@@ -8,6 +8,7 @@ from ..resources import DB, Config
 
 from random import shuffle
 from datetime import datetime
+import traceback
 import asyncio
 
 class TeamDraftMessage(discord.Message):
@@ -447,7 +448,7 @@ class MatchCog(commands.Cog):
             "SELECT * FROM matches\n"
             f"    WHERE id = {match_id};"
         )
-        db_match = await utils.Match.from_dict(self.bot, match_data)
+        db_match = utils.Match.from_dict(self.bot, match_data)
 
         await user.remove_roles(db_guild.linked_role)
 
@@ -513,7 +514,7 @@ class MatchCog(commands.Cog):
             "SELECT * FROM matches\n"
             f"    WHERE id = {match_id};"
         )
-        db_match = await utils.Match.from_dict(self.bot, match_data)
+        db_match = utils.Match.from_dict(self.bot, match_data)
 
         await user.add_roles(db_guild.linked_role)
         await db_match.team1_channel.set_permissions(user, connect=False)
@@ -629,73 +630,6 @@ class MatchCog(commands.Cog):
         """"""
         menu = MapVetoMessage(message, self.bot, lobby)
         return await menu.veto(captain_1, captain_2)
-
-    def _embed_match(self, match, server, mapstats, scoreboard):
-        """"""
-        description = ''
-        is_live = match.end_time == None
-
-        if match.cancelled:
-            title = '🟥  '
-        elif not is_live:
-            title = '🔴  '
-        else:
-            title = '🟢  '
-        title += utils.trans('match-id', match.id) + f' --> **{match.team1_name}**  [{match.team1_score}:{match.team2_score}]  **{match.team2_name}**'
-        
-        if is_live and server:
-            connect_url = f'steam://connect/{server.ip_string}:{server.port}'
-            connect_command = f'connect {server.ip_string}:{server.port}'
-            description += f'{utils.trans("match-server-info", connect_url, connect_command)}\n\n' \
-                           f'GOTV: steam://connect/{server.ip_string}:{server.gotv_port}\n\n'
-
-        for mapstat in mapstats:
-            start_time = datetime.fromisoformat(mapstat.start_time.replace("Z", "+00:00")).strftime("%Y-%m-%d  %H:%M:%S")
-            team1_match = []
-            team2_match = []
-
-            for player_stat in scoreboard:
-                if player_stat.map_id != mapstat.id:
-                    continue
-                if player_stat.team_id == match.team1_id:
-                    team1_match.append(player_stat)
-                elif player_stat.team_id == match.team2_id:
-                    team2_match.append(player_stat)
-
-            description += f"**{utils.trans('map')} {mapstat.map_number+1}:** {mapstat.map_name}\n" \
-                           f"**{utils.trans('score')}:** {match.team1_name}  [{mapstat.team1_score}:{mapstat.team2_score}]  {match.team2_name}\n" \
-                           f"**{utils.trans('start-time')}:** {start_time}\n"
-
-            if mapstat.end_time:
-                end_time = datetime.fromisoformat(mapstat.end_time.replace("Z", "+00:00")).strftime("%Y-%m-%d  %H:%M:%S")
-                description += f"**{utils.trans('end-time')}:** {end_time}\n"
-
-            if team1_match and team2_match:
-                for team in [team1_match, team2_match]:
-                    team.sort(key=lambda x: x.score, reverse=True)
-                    data = [['Player'] + [player.name for player in team],
-                            ['Kills'] + [f"{player.kills}" for player in team],
-                            ['Assists'] + [f"{player.assists}" for player in team],
-                            ['Deaths'] + [f"{player.deaths}" for player in team],
-                            ['KDR'] + [f"{0 if player.deaths == 0 else player.kills/player.deaths:.2f}" for player in team]]
-
-                    data[0] = [name if len(name) < 12 else name[:9] + '...' for name in data[0]]  # Shorten long names
-                    widths = list(map(lambda x: len(max(x, key=len)), data))
-                    aligns = ['left', 'center', 'center', 'center', 'right']
-                    z = zip(data, widths, aligns)
-                    formatted_data = [list(map(lambda x: utils.align_text(x, width, align), col)) for col, width, align in z]
-                    formatted_data = list(map(list, zip(*formatted_data)))  # Transpose list for .format() string
-                    description += '```ml\n    {}  {}  {}  {}  {}  \n'.format(*formatted_data[0])
-
-                    for rank, player_row in enumerate(formatted_data[1:], start=1):
-                        description += ' {}. {}  {}  {}  {}  {}  \n'.format(rank, *player_row)
-
-                    description += '```\n'
-            description += '\n'
-        description += f"[{utils.trans('more-info')}]({Config.web_panel}/match/{match.id})"
-
-        embed = self.bot.embed_template(title=title, description=description)
-        return embed
 
     async def start_match(self, users, message, lobby, db_guild):
         """"""
@@ -846,6 +780,28 @@ class MatchCog(commands.Cog):
                 *[user.id for user in team_one + team_two]
             )
 
+            connect_url = f'steam://connect/{match_server.ip_string}:{match_server.port}'
+            connect_command = f'connect {match_server.ip_string}:{match_server.port}'
+            title = f"🟢 {utils.trans('match-id', match_id)} --> **{team_one[0].display_name}**  vs  **{team_two[0].display_name}**"
+            description = f'{utils.trans("match-server-info", connect_url, connect_command)}\n\n' \
+                           f'GOTV: steam://connect/{match_server.ip_string}:{match_server.gotv_port}\n\n'
+            description += f"{utils.trans('message-maps')}: {''.join(m.emoji for m in maps_list)}"
+            
+            burst_embed = self.bot.embed_template(title=title, description=description)
+            for team in [team_one, team_two]:
+                team_name = f'__{team[0].display_name}__'
+                burst_embed.add_field(name=team_name, value='\n'.join(user.mention for user in team))
+
+            burst_embed.set_footer(text=utils.trans('match-info-footer'))
+
+            try:
+                await message.edit(embed=burst_embed)
+            except discord.NotFound:
+                try:
+                    await lobby.queue_channel.send(embed=burst_embed)
+                except Exception as e:
+                    print(e)
+
             if not self.check_matches.is_running():
                 self.check_matches.start()
 
@@ -869,34 +825,27 @@ class MatchCog(commands.Cog):
         if match_ids:
             for match_id in match_ids:
                 try:
-                    await self.update_match_message(match_id)
+                    await self.update_match(match_id)
                 except Exception as e:
-                    self.bot.logger.error(f'caught error when calling check_matches(): {e}')
+                    traceback.print_exception(type(e), e, e.__traceback__)
+                    self.bot.logger.error(f'caught error when calling update_match({match_id}): {e}')
         else:
             self.check_matches.cancel()
 
-    async def update_match_message(self, match_id):
+    async def update_match(self, match_id):
         """"""
-        api_match = None
-        api_server = None
         api_mapstats = []
         api_scoreboard = []
-
-        match_data = await DB.helper.fetch_row(
-            "SELECT * FROM matches\n"
-            f"    WHERE id = {match_id};"
-        )
-        db_match = await utils.Match.from_dict(self.bot, match_data)
+        description = ''
 
         try:
-            api_match = await api.Matches.get_match(db_match.id)
+            api_match = await api.Matches.get_match(match_id)
         except Exception as e:
             print(e)
+            return
 
-        try:
-            api_server = await api.Servers.get_server(api_match.server_id, db_match.db_guild.auth)
-        except Exception as e:
-            print(e)
+        if not api_match.end_time:
+            return
 
         try:
             api_mapstats = await api.MapStats.get_mapstats(api_match.id)
@@ -908,34 +857,88 @@ class MatchCog(commands.Cog):
         except Exception as e:
             print(e)
 
-        embed = self._embed_match(api_match, api_server, api_mapstats, api_scoreboard)
+        if api_match.cancelled:
+            title = '🟥  '
+        else:
+            title = '🔴  '
+        title += utils.trans('match-id', match_id) + f' --> **{api_match.team1_name}**  [{api_match.team1_score}:{api_match.team2_score}]  **{api_match.team2_name}**'
+
+        for mapstat in api_mapstats:
+            start_time = datetime.fromisoformat(mapstat.start_time.replace("Z", "+00:00")).strftime("%Y-%m-%d  %H:%M:%S")
+            team1_match = []
+            team2_match = []
+
+            for player_stat in api_scoreboard:
+                if player_stat.map_id != mapstat.id:
+                    continue
+                if player_stat.team_id == api_match.team1_id:
+                    team1_match.append(player_stat)
+                elif player_stat.team_id == api_match.team2_id:
+                    team2_match.append(player_stat)
+
+            description += f"**{utils.trans('map')} {mapstat.map_number+1}:** {mapstat.map_name}\n" \
+                           f"**{utils.trans('score')}:** {api_match.team1_name}  [{mapstat.team1_score}:{mapstat.team2_score}]  {api_match.team2_name}\n" \
+                           f"**{utils.trans('start-time')}:** {start_time}\n"
+
+            if mapstat.end_time:
+                end_time = datetime.fromisoformat(mapstat.end_time.replace("Z", "+00:00")).strftime("%Y-%m-%d  %H:%M:%S")
+                description += f"**{utils.trans('end-time')}:** {end_time}\n"
+
+            if team1_match and team2_match:
+                for team in [team1_match, team2_match]:
+                    team.sort(key=lambda x: x.score, reverse=True)
+                    data = [['Player'] + [player.name for player in team],
+                            ['Kills'] + [f"{player.kills}" for player in team],
+                            ['Assists'] + [f"{player.assists}" for player in team],
+                            ['Deaths'] + [f"{player.deaths}" for player in team],
+                            ['KDR'] + [f"{0 if player.deaths == 0 else player.kills/player.deaths:.2f}" for player in team]]
+
+                    data[0] = [name if len(name) < 12 else name[:9] + '...' for name in data[0]]  # Shorten long names
+                    widths = list(map(lambda x: len(max(x, key=len)), data))
+                    aligns = ['left', 'center', 'center', 'center', 'right']
+                    z = zip(data, widths, aligns)
+                    formatted_data = [list(map(lambda x: utils.align_text(x, width, align), col)) for col, width, align in z]
+                    formatted_data = list(map(list, zip(*formatted_data)))  # Transpose list for .format() string
+                    description += '```ml\n    {}  {}  {}  {}  {}  \n'.format(*formatted_data[0])
+
+                    for rank, player_row in enumerate(formatted_data[1:], start=1):
+                        description += ' {}. {}  {}  {}  {}  {}  \n'.format(rank, *player_row)
+
+                    description += '```\n'
+            description += '\n'
+        description += f"[{utils.trans('more-info')}]({Config.web_panel}/match/{match_id})"
+
+        embed = self.bot.embed_template(title=title, description=description)
+
+        match_data = await DB.helper.fetch_row(
+            "SELECT * FROM matches\n"
+            f"    WHERE id = {match_id};"
+        )
+        db_match = utils.Match.from_dict(self.bot, match_data)
+
+        guild_data = await DB.helper.fetch_row(
+            "SELECT * FROM guilds\n"
+            f"    WHERE id = {db_match.guild.id};"
+        )
+        db_guild = utils.Guild.from_dict(self.bot, guild_data)
 
         try:
-            await db_match.message.edit(embed=embed)
+            message = await db_match.message.fetch()
+            await message.edit(embed=embed)
         except Exception as e:
-            print(e)
             try:
-                message = await db_match.channel.send(embed=embed)
-                await DB.helper.query(
-                    "UPDATE matches\n"
-                    f"    SET message = {message.id};"
-                )
+                await db_match.channel.send(embed=embed)
             except Exception as e:
                 print(e)
                 pass
         
-        if api_match.end_time:
-            await self.remove_teams_channels(db_match)
-
-    async def remove_teams_channels(self, db_match):
-        """"""
-        guild = db_match.db_guild.guild
+        guild = db_guild.guild
         banned_users = await DB.helper.get_banned_users(guild.id)
         banned_users = [guild.get_member(user_id) for user_id in banned_users]
 
         match_player_ids = await DB.helper.query(
             "SELECT user_id FROM match_users\n"
-            f"    WHERE match_id = {db_match.id};",
+            f"    WHERE match_id = {match_id};",
             ret_key='user_id'
         )
         match_players = [guild.get_member(user_id) for user_id in match_player_ids]
@@ -944,8 +947,8 @@ class MatchCog(commands.Cog):
         for user in match_players:
             if user is not None:
                 if user not in banned_users:
-                    awaitables.append(user.add_roles(db_match.db_guild.linked_role))
-                awaitables.append(user.move_to(db_match.db_guild.prematch_channel))
+                    awaitables.append(user.add_roles(db_guild.linked_role))
+                awaitables.append(user.move_to(db_guild.prematch_channel))
 
         await asyncio.gather(*awaitables, loop=self.bot.loop, return_exceptions=True)
 

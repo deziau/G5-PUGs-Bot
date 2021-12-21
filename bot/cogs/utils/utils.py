@@ -165,7 +165,7 @@ class Match:
     def __init__(
         self,
         match_id,
-        db_guild,
+        guild,
         channel,
         message,
         category,
@@ -174,7 +174,7 @@ class Match:
     ):
         """"""
         self.id = match_id
-        self.db_guild = db_guild
+        self.guild = guild
         self.channel = channel
         self.message = message
         self.category = category
@@ -182,30 +182,24 @@ class Match:
         self.team2_channel = team2_channel
 
     @classmethod
-    async def from_dict(cls, bot, match_data: dict):
+    def from_dict(cls, bot, match_data: dict):
         """"""
-        guild_data = await DB.helper.fetch_row(
-
-            "SELECT * FROM guilds\n"
-            f"    WHERE id = {match_data['guild']};"
-        )
-        db_guild = Guild.from_dict(bot, guild_data)
-
-        channel = db_guild.guild.get_channel(match_data['channel'])
+        guild = bot.get_guild(match_data['guild'])
+        channel = guild.get_channel(match_data['channel'])
 
         try:
-            message = await channel.fetch_message(match_data['message'])
-        except (AttributeError, discord.NotFound, discord.HTTPException):
+            message = channel.get_partial_message(match_data['message'])
+        except AttributeError:
             message = None
 
         return cls(
             match_data['id'],
-            db_guild,
+            guild,
             channel,
             message,
-            db_guild.guild.get_channel(match_data['category']),
-            db_guild.guild.get_channel(match_data['team1_channel']),
-            db_guild.guild.get_channel(match_data['team2_channel'])
+            guild.get_channel(match_data['category']),
+            guild.get_channel(match_data['team1_channel']),
+            guild.get_channel(match_data['team2_channel'])
         )
 
 
