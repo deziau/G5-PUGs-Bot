@@ -709,12 +709,15 @@ class LobbyCog(commands.Cog):
             msg = await lobby.last_message.fetch()
             await msg.edit(embed=embed)
         except (AttributeError, discord.NotFound, discord.HTTPException):
-            msg = await lobby.queue_channel.send(embed=embed)
-            await DB.helper.query(
-                "UPDATE lobbies\n"
-                f"    SET last_message = {msg.id}\n"
-                f"    WHERE id = {lobby.id};"
-            )
+            try:
+                msg = await lobby.queue_channel.send(embed=embed)
+                await DB.helper.query(
+                    "UPDATE lobbies\n"
+                    f"    SET last_message = {msg.id}\n"
+                    f"    WHERE id = {lobby.id};"
+                )
+            except (AttributeError, discord.NotFound, discord.HTTPException):
+                pass
 
     async def check_ready(self, message, users, guild):
         """"""
