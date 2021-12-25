@@ -254,42 +254,43 @@ class MapVetoMessage(discord.Message):
             setattr(self, attr_name, attr_val)
 
         self.bot = bot
-        self.ban_order = '12' * 20
+        self.ban_order = '121212'
+        self.ban_number = 0
         self.lobby = lobby
-        self.map_pool = lobby.mpool
+        self.maps_left = {m.emoji: m for m in self.lobby.mpool}
+        self.maps_pick = []
+        self.maps_ban = []
         self.captains = None
-        self.maps_left = None
-        self.ban_number = None
         self.future = None
 
     @property
     def _active_picker(self):
         """"""
-        if self.ban_number is None or self.captains is None:
-            return None
-
         picking_player_number = int(self.ban_order[self.ban_number])
         return self.captains[picking_player_number - 1]
 
-    def _veto_embed(self, title):
+    def _veto_embed(self, title, method):
         """"""
         embed = self.bot.embed_template(title=title)
         maps_str = ''
 
-        if self.map_pool is not None and self.maps_left is not None:
-            for m in self.map_pool:
-                maps_str += f'{m.emoji}  {m.name}\n' if m.emoji in self.maps_left else f':heavy_multiplication_x:  ' \
-                            f'~~{m.name}~~\n '
-
-        status_str = ''
-
-        if self.captains is not None and self._active_picker is not None:
-            status_str += utils.trans("message-capt1", self.captains[0].mention) + '\n'
-            status_str += utils.trans("message-capt2", self.captains[1].mention) + '\n\n'
-            status_str += utils.trans("message-current-capt", self._active_picker.mention)
+        for m in self.lobby.mpool:
+            if m in self.maps_pick:
+                maps_str += f'✅ {m.emoji}  {m.name}\n'
+            elif m in self.maps_ban:
+                maps_str += f'❌ {m.emoji}  ~~{m.name}~~\n'
+            else:
+                maps_str += f'❔ {m.emoji}  {m.name}\n'
 
         embed.add_field(name=utils.trans("message-maps-left"), value=maps_str)
-        embed.add_field(name=utils.trans("message-info"), value=status_str)
+        if self.ban_number < len(self.ban_order):
+            status_str = ''
+            status_str += utils.trans("message-capt1", self.captains[0].mention) + '\n'
+            status_str += utils.trans("message-capt2", self.captains[1].mention) + '\n\n'
+            status_str += utils.trans("message-current-capt", self._active_picker.mention) + '\n'
+            status_str += utils.trans('message-map-method', method)
+            embed.add_field(name=utils.trans("message-info"), value=status_str)
+
         embed.set_footer(text=utils.trans('message-map-veto-footer'))
         return embed
 
@@ -303,24 +304,37 @@ class MapVetoMessage(discord.Message):
             return
 
         try:
-            map_ban = self.maps_left.pop(str(reaction))
+            selected_map = self.maps_left.pop(str(reaction))
         except KeyError:
             return
 
+        if self.lobby.series == 'bo3' and self.ban_number in [2, 3]:
+            self.maps_pick.append(selected_map)
+            title = utils.trans('message-user-picked-map', user.display_name, selected_map.name)
+        else:
+            self.maps_ban.append(selected_map)
+            title = utils.trans('message-user-banned-map', user.display_name, selected_map.name)
+            method = utils.trans('message-map-method-ban')
+        
+        if self.lobby.series == 'bo3':
+            if self.ban_number in [1, 2]:
+                method = utils.trans('message-map-method-pick')
+            else:
+                method = utils.trans('message-map-method-ban')
+
         self.ban_number += 1
-        await self.clear_reaction(map_ban.emoji)
-        embed = self._veto_embed(utils.trans('message-user-banned-map', user.display_name, map_ban.name))
+        await self.clear_reaction(selected_map.emoji)
+        embed = self._veto_embed(title, method)
         await self.edit(embed=embed)
 
-        if (self.lobby.series == 'bo1' and len(self.maps_left) == 1) or \
+        if (self.lobby.series == 'bo3' and len(self.maps_pick) == 2 and len(self.maps_ban) == 4) or \
            (self.lobby.series == 'bo2' and len(self.maps_left) == 2) or \
-           (self.lobby.series == 'bo3' and len(self.maps_left) == 3):
+           (self.lobby.series == 'bo1' and len(self.maps_left) == 1):
             if self.future is not None:
                 try:
                     self.future.set_result(None)
                 except asyncio.InvalidStateError:
                     pass
-
 
     async def _message_deleted(self, message):
         """"""
@@ -337,15 +351,15 @@ class MapVetoMessage(discord.Message):
     async def veto(self, captain_1, captain_2):
         """"""
         self.captains = [captain_1, captain_2]
-        self.maps_left = {m.emoji: m for m in self.map_pool}
-        self.ban_number = 0
 
-        if len(self.map_pool) % 2 == 0:
+        if len(self.lobby.mpool) % 2 == 0:
             self.captains.reverse()
 
-        await self.edit(embed=self._veto_embed(utils.trans('message-map-bans-begun')))
+        title = utils.trans('message-map-bans-begun')
+        method = utils.trans('message-map-method-ban')
+        await self.edit(embed=self._veto_embed(title, method))
 
-        for m in self.map_pool:
+        for m in self.lobby.mpool:
             await self.add_reaction(m.emoji)
 
         self.future = self.bot.loop.create_future()
@@ -360,7 +374,7 @@ class MapVetoMessage(discord.Message):
             raise
 
         await self.clear_reactions()
-        return list(self.maps_left.values())
+        return self.maps_pick + list(self.maps_left.values())
 
 
 class MatchCog(commands.Cog):

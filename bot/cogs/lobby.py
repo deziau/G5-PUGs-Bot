@@ -68,10 +68,11 @@ class MapPoolMessage(discord.Message):
         if reaction.message.id != self.id or user == self.author or user != self.user:
             return
 
+        await self.remove_reaction(reaction, user)
         emoji = str(reaction.emoji)
 
         if emoji == '✅':
-            if len(self.active_maps) < 3:
+            if len(self.active_maps) != 7:
                 pass
             else:
                 await self.edit(embed=self._pick_embed())
