@@ -12,7 +12,8 @@
         "unable-to-unlink":             "Unable to unlink {}; Their account is already not linked",
         "unlink-steam-success":         "User {} has unlinked successfully",
         "lobby-title":                  "Lobby {} (#{})",
-        "lobby-capacity":              "**Capacity:** {}",
+        "lobby-region":                 "**Region:** {}",
+        "lobby-capacity":               "**Capacity:** {}",
         "lobby-series-type":            "**Series Type:** {}",
         "lobby-team-method":            "**Teams Selection:** {}",
         "lobby-captain-method":         "**Captains Selection:** {}",
@@ -140,9 +141,13 @@
         "command-series-brief":         "Set the series type of the lobby (must have admin perms)",
         "series-valid-methods":         "Series value must be {}, {} or {}",
         "series-value-already":         "The current series value is already set to **{}**",
-        "set-series-value":             "Series type set tp **{}**",
+        "set-series-value":             "Series type set to **{}**",
         "delete-lobby-command-brief":   "Delete a lobby",
         "success-delete-lobby":         "Lobby **{}** has been deleted successfully",
-        "match-info-footer":            "Server will close after 10 minutes if anyone doesn't join"
+        "match-info-footer":            "Server will close after 10 minutes if anyone doesn't join",
+        "command-region-brief":         "Set or remove the region of the lobby",
+        "region-not-valid":             "Invalid region",
+        "lobby-region-already":         "Region is already set to **{}**",
+        "set-lobby-region":             "Region set to **{}**"
     }
 }

@@ -15,7 +15,8 @@ from ..resources import DB
 async def _embed_lobby_msg(bot, lobby):
     """"""
     title = utils.trans('lobby-title', lobby.name, lobby.id)
-    msg = f"{utils.trans('lobby-capacity', lobby.capacity)}\n" \
+    msg = f"{utils.trans('lobby-region', lobby.region)}\n" \
+          f"{utils.trans('lobby-capacity', lobby.capacity)}\n" \
           f"{utils.trans('lobby-series-type', lobby.series)}\n" \
           f"{utils.trans('lobby-team-method', lobby.team_method)}\n" \
           f"{utils.trans('lobby-captain-method', lobby.captain_method)}\n" \
@@ -562,6 +563,52 @@ class LobbyCog(commands.Cog):
         await ctx.message.reply(embed=embed)
         await self.update_lobby_msg(lobby)
 
+    @commands.command(usage='region <lobby ID> {none|region code}',
+                      brief=utils.trans('command-region-brief'))
+    @commands.has_permissions(administrator=True)
+    async def region(self, ctx, *args):
+        """ Set or remove the region of the lobby. """
+        try:
+            new_region = args[1].upper()
+            lobby_id = int(args[0])
+        except (IndexError, ValueError):
+            msg = utils.trans('invalid-usage', self.bot.command_prefix[0], ctx.command.usage)
+            raise commands.UserInputError(message=msg)
+
+        lobby_data = await DB.helper.fetch_row(
+            "SELECT * FROM lobbies\n"
+            f"    WHERE id = {lobby_id} AND guild = {ctx.guild.id};"
+        )
+        if not lobby_data:
+            raise commands.UserInputError(message=utils.trans('invalid-lobby-id'))
+
+        lobby = utils.Lobby.from_dict(self.bot, lobby_data)
+        curr_region = lobby.region
+        valid_regions = list(utils.FLAG_CODES.values())
+
+        if new_region == 'NONE':
+            new_region = None
+
+        if new_region not in [None] + valid_regions:
+            msg = utils.trans('region-not-valid')
+            raise commands.UserInputError(message=msg)
+
+        if curr_region == new_region:
+            msg = utils.trans('lobby-region-already', curr_region)
+            raise commands.UserInputError(message=msg)
+
+        region = f"'{new_region}'" if new_region else 'NULL'
+        await DB.helper.query(
+            "UPDATE lobbies\n"
+            f"    SET region = {region}\n"
+            f"    WHERE id = {lobby.id};"
+        )
+
+        title = utils.trans('set-lobby-region', new_region)
+        embed = self.bot.embed_template(title=title)
+        await ctx.message.reply(embed=embed)
+        await self.update_lobby_msg(lobby)
+
     @commands.command(usage='mpool <Lobby ID> ',
                       brief=utils.trans('command-mpool-brief'),
                       aliases=['mappool', 'pool'])
@@ -934,6 +981,7 @@ class LobbyCog(commands.Cog):
     @series.error
     @teams.error
     @captains.error
+    @region.error
     @mpool.error
     async def config_error(self, ctx, error):
         """"""
