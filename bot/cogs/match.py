@@ -686,12 +686,16 @@ class MatchCog(commands.Cog):
             api_servers = await api.Servers.get_servers(db_guild.auth)
             match_server = None
             for server in api_servers:
+                if server.in_use:
+                    continue
+                if lobby.region and server.flag != lobby.region:
+                    continue
                 try:
                     server_up = await api.Servers.is_server_available(server.id, db_guild.auth)
                 except Exception as e:
                     print(e)
                     continue
-                if server_up and not server.in_use:
+                if server_up:
                     match_server = server
                     break
 

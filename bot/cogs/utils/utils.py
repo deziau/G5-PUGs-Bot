@@ -97,6 +97,7 @@ class Lobby:
         lobby_id,
         guild,
         name,
+        region,
         capacity,
         series,
         channel,
@@ -113,6 +114,7 @@ class Lobby:
         self.id = lobby_id
         self.guild = guild
         self.name = name
+        self.region = region
         self.capacity = capacity
         self.series = series
         self.channel = channel
@@ -146,6 +148,7 @@ class Lobby:
             lobby_data['id'],
             guild,
             lobby_data['name'],
+            lobby_data['region'],
             lobby_data['capacity'],
             lobby_data['series_type'],
             channel,
