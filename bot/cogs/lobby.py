@@ -307,7 +307,7 @@ class LobbyCog(commands.Cog):
         embed = await _embed_lobby_msg(self.bot, lobby)
         lobby_message = await lobby.channel.send(embed=embed)
 
-        category = await ctx.guild.create_category_channel(name=f'{lobby.name} lobby')
+        category = await ctx.guild.create_category_channel(name=f'{lobby.name} lobby (#{lobby.id})')
         queue_channel = await ctx.guild.create_text_channel(category=category, name=f'{lobby.name} setup')
         lobby_channel = await ctx.guild.create_voice_channel(category=category, name=f'{lobby.name} lobby', user_limit=lobby.capacity)
 
